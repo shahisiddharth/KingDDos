@@ -37,7 +37,7 @@ if not TELEGRAM_BOT_TOKEN:
 if not KIMSTRESS_TOKEN:
     logger.error("KIMSTRESS_TOKEN environment variable is not set!")
 
-# Build the Telegram Application instance
+# Build the Telegram Application instance - FIXED: use .builder() not .Builder()
 application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
 # ============= HANDLERS =============
