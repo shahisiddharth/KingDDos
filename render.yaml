@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: kingddos
+    runtime: image
+    repo: https://github.com/shahisiddharth/KingDDoS
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: KIMSTRESS_TOKEN
+        sync: false
